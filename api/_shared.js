@@ -111,6 +111,9 @@ export async function generate({ persona, userPrompt, schema, maxTokens = 16000,
   // the deliverable is the text after the last tool/thinking block.
   const lastToolIdx = message.content.findLastIndex((b) => b.type !== "text");
   const textBlocks = message.content.slice(lastToolIdx + 1).filter((b) => b.type === "text");
+  if (!textBlocks.length) {
+    throw new Error(`model returned no final text (stop_reason: ${message.stop_reason})`);
+  }
   if (schema) {
     return JSON.parse(textBlocks[textBlocks.length - 1].text);
   }

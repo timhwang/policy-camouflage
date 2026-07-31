@@ -15,6 +15,8 @@ const app = express();
 app.use(express.json());
 
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
+// Scoped to demo/ only — never serve the repo root (it contains .env).
+app.use("/demo", express.static(path.join(__dirname, "demo")));
 
 app.post("/api/pitch", makeHandler(generatePitch));
 app.post("/api/brief", makeHandler(generateBriefSection));
