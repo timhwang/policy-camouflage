@@ -167,31 +167,56 @@ all three fields as empty strings for those.`,
   });
 }
 
-export async function generateBrief({ proposal, persona }) {
+const BRIEF_SECTIONS = {
+  summary: {
+    guidance: `Write the opening: a Markdown H1 title for the whole brief,
+then "## Executive Summary" — 120-180 words distilling the entire case so it
+stands alone even before the other sections load.`,
+  },
+  problem: {
+    guidance: `Write "## The Problem" — 200-300 words on the problem this
+proposal solves, as your persona diagnoses it. This is where the strongest
+verified statistics belong.`,
+  },
+  solution: {
+    guidance: `Write "## The Solution & Why It Aligns With Our Values" —
+250-350 words on what the proposal does, why it works, and why it is a
+natural fit for your persona's principles.`,
+  },
+  recommendations: {
+    guidance: `Write "## Recommendations" — 150-250 words of concrete next
+steps for legislators, staffers, and activists, as a numbered list with a
+short lead-in.`,
+  },
+};
+
+export async function generateBriefSection({ proposal, persona, section }) {
+  const spec = BRIEF_SECTIONS[section];
+  if (!spec) throw new Error(`unknown brief section: ${section}`);
   return generate({
     persona,
-    effort: "medium",
-    maxSearches: 8,
+    maxSearches: 3,
     userPrompt: `Policy proposal: ${proposal}
 
-Write a policy brief (roughly 2-3 pages, 800-1200 words) supporting this
-proposal, written for staffers and activists who share your persona's
-politics. "brief_markdown" holds the complete brief: a title and 3-5 sections
-(e.g. Executive Summary, The Problem, The Solution, Why This Aligns With Our
-Values, Recommendations). Keep the persona's framing throughout, but make the
-substance solid enough to hand to a legislative office.
+You are writing ONE section of a four-section policy brief supporting this
+proposal, for staffers and activists who share your persona's politics. The
+full brief has these sections, each written separately: Executive Summary /
+The Problem / The Solution & Why It Aligns With Our Values / Recommendations.
+Stay in your lane — do not cover the other sections' ground.
 
-Sourcing is a hard rule: run web searches before drafting, and every specific
-number, percentage, dollar figure, or named study in the brief MUST carry a
+${spec.guidance}
+
+Sourcing is a hard rule: run 1-3 web searches before drafting, and every
+specific number, percentage, dollar figure, or named study MUST carry a
 bracketed citation marker like [1] that matches an entry in "sources" — a
 numeric claim with no [n] marker is invalid output. Each source's "url" must
 be a URL you saw in this request's search results. If you couldn't verify a
 number, write that passage qualitatively instead. Do not save anything to a
-file and do not include meta-commentary about your search process.`,
+file; "section_markdown" is the deliverable.`,
     schema: {
       type: "object",
       properties: {
-        brief_markdown: { type: "string", description: "The complete brief as Markdown" },
+        section_markdown: { type: "string", description: "This section as Markdown" },
         sources: {
           type: "array",
           items: {
@@ -206,41 +231,37 @@ file and do not include meta-commentary about your search process.`,
           },
         },
       },
-      required: ["brief_markdown", "sources"],
+      required: ["section_markdown", "sources"],
       additionalProperties: false,
     },
   });
 }
 
-export async function generateNewsHooks({ proposal, persona }) {
-  // Occasionally a thin search round yields too few hooks; retry once and
-  // keep whichever attempt found more.
-  const once = () => generateNewsHooksOnce({ proposal, persona });
-  const result = await once();
-  if ((result.hooks?.length ?? 0) >= 3) return result;
-  const retry = await once();
-  return (retry.hooks?.length ?? 0) > (result.hooks?.length ?? 0) ? retry : result;
-}
+const NEWS_BEATS = {
+  politics: "national politics, elections, and Washington power struggles",
+  economy: "the economy, business, and pocketbook issues",
+  culture: "culture, technology, and media",
+};
 
-function generateNewsHooksOnce({ proposal, persona }) {
+export async function generateNewsBeat({ proposal, persona, beat }) {
+  const beatDesc = NEWS_BEATS[beat];
+  if (!beatDesc) throw new Error(`unknown news beat: ${beat}`);
   return generate({
     persona,
-    maxSearches: 6,
+    maxSearches: 3,
     userPrompt: `Policy proposal: ${proposal}
 
-Use web_search to find 4-6 political news stories from roughly the past week
-that are trending in your persona's media ecosystem — the stories their
-commentators, feeds, and group chats are actually talking about right now.
-For each story, explain how an advocate could graft this proposal onto that
-storyline: the segue from the story everyone is discussing to the policy you
-want them to adopt, in your persona's voice.
+Use web_search (1-3 searches) to find 1-2 news stories from roughly the past
+week about ${beatDesc} that are trending in your persona's media ecosystem —
+stories their commentators, feeds, and group chats are actually talking about
+right now. For each story, explain how an advocate could graft this proposal
+onto that storyline: the segue from the story everyone is discussing to the
+policy you want them to adopt, in your persona's voice.
 
 Every story MUST come from this request's search results, with its real
 "source_name" and "source_url" — do not include stories you only remember
-from training data. Always return at least 3 hooks: if your searches surface
-fewer ideal stories than that, work with the real stories they did surface,
-even imperfect fits — an inventive graft onto a so-so story beats an empty
-list.`,
+from training data. Always return at least 1 hook: an inventive graft onto a
+so-so story beats an empty list.`,
     schema: {
       type: "object",
       properties: {
@@ -288,7 +309,7 @@ export function makeHandler(taskFn) {
     }
 
     try {
-      const result = await taskFn({ proposal: proposal.trim(), persona });
+      const result = await taskFn({ ...req.body, proposal: proposal.trim(), persona });
       res.json(result);
     } catch (error) {
       console.error("Claude API error:", error);

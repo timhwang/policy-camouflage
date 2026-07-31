@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import {
   makeHandler,
   generatePitch,
-  generateBrief,
-  generateNewsHooks,
+  generateBriefSection,
+  generateNewsBeat,
 } from "./api/_shared.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -17,8 +17,8 @@ app.use(express.json());
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 
 app.post("/api/pitch", makeHandler(generatePitch));
-app.post("/api/brief", makeHandler(generateBrief));
-app.post("/api/news", makeHandler(generateNewsHooks));
+app.post("/api/brief", makeHandler(generateBriefSection));
+app.post("/api/news", makeHandler(generateNewsBeat));
 
 const port = process.env.PORT || 3457;
 app.listen(port, () => console.log(`Policy Camouflage running on http://localhost:${port}`));

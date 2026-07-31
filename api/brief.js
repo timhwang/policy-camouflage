@@ -1,3 +1,3 @@
-import { makeHandler, generateBrief } from "./_shared.js";
+import { makeHandler, generateBriefSection } from "./_shared.js";
 
-export default makeHandler(generateBrief);
+export default makeHandler(generateBriefSection);

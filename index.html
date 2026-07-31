@@ -298,28 +298,94 @@
               tp.source_url ? ` — <a class="src" href="${esc(tp.source_url)}" target="_blank" rel="noopener noreferrer">${esc(tp.source_name || 'source')}</a>` : ''
             }</span>` : ''}</li>`).join('')}
           </ul>`),
-        callApi('brief', body, document.getElementById('briefBody'), (d) => {
-          let html = renderMd(d.brief_markdown || d.brief || '');
-          const sources = d.sources || [];
-          for (const s of sources) {
-            html = html.replaceAll(`[${s.n}]`,
-              `<a class="src" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer"><sup>[${s.n}]</sup></a>`);
-          }
-          if (sources.length) {
-            html += `<h3>Sources</h3><ol>${sources.map(s =>
-              `<li id="src-${s.n}"><a class="src" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.name)}</a></li>`).join('')}</ol>`;
-          }
-          return `<div class="brief-md">${html}</div>`;
-        }),
-        callApi('news', body, document.getElementById('newsBody'), (d) => `
-          <ul class="points">${(d.hooks || []).map(h => `
-            <li>
-              <strong>${esc(h.story)}</strong>
-              ${h.source_url ? ` <a class="src" href="${esc(h.source_url)}" target="_blank" rel="noopener noreferrer">${esc(h.source_name || 'source')}</a>` : ''}
-              <span class="support">${esc(h.hook)}</span>
-            </li>`).join('')}
-          </ul>`),
       ];
+
+      // Brief: four sections fired as parallel calls, rendered as they land,
+      // with citation numbers remapped into one shared Sources list.
+      const BRIEF_SECTIONS = [
+        { id: 'summary', label: 'Executive Summary' },
+        { id: 'problem', label: 'The Problem' },
+        { id: 'solution', label: 'The Solution & Values' },
+        { id: 'recommendations', label: 'Recommendations' },
+      ];
+      const briefBody = document.getElementById('briefBody');
+      briefBody.innerHTML = BRIEF_SECTIONS.map(s =>
+        `<div class="brief-md" id="bsec-${s.id}"><p class="status">Searching the web and writing…</p></div>`
+      ).join('') + '<div class="brief-md" id="briefSources"></div>';
+      const briefSources = [];
+      const renderBriefSources = () => {
+        document.getElementById('briefSources').innerHTML = briefSources.length
+          ? `<h3>Sources</h3><ol>${briefSources.map(s =>
+              `<li><a class="src" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.name)}</a></li>`).join('')}</ol>`
+          : '';
+      };
+      for (const sec of BRIEF_SECTIONS) {
+        jobs.push((async () => {
+          const slot = document.getElementById(`bsec-${sec.id}`);
+          try {
+            const resp = await fetch(`${API_BASE}/brief`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...body, section: sec.id }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+            let html = renderMd(data.section_markdown || '');
+            for (const s of (data.sources || []).slice().sort((a, b) => a.n - b.n)) {
+              briefSources.push({ name: s.name, url: s.url });
+              html = html.replaceAll(`[${s.n}]`, `@@C${briefSources.length}@@`);
+            }
+            html = html.replace(/@@C(\d+)@@/g, (_, g) =>
+              `<a class="src" href="${esc(briefSources[g - 1].url)}" target="_blank" rel="noopener noreferrer"><sup>[${g}]</sup></a>`);
+            slot.innerHTML = html;
+            renderBriefSources();
+          } catch (err) {
+            slot.innerHTML = `<p class="status error">${esc(sec.label)} failed: ${esc(err.message)}</p>`;
+          }
+        })());
+      }
+
+      // News: three beat-scoped calls; hooks append as each beat lands.
+      const NEWS_BEATS = ['politics', 'economy', 'culture'];
+      const newsBody = document.getElementById('newsBody');
+      newsBody.innerHTML =
+        '<ul class="points" id="newsList"></ul><p class="status" id="newsStatus">Searching the web and writing…</p>';
+      let newsHookCount = 0;
+      let newsPending = NEWS_BEATS.length;
+      const seenStories = new Set();
+      for (const beat of NEWS_BEATS) {
+        jobs.push((async () => {
+          try {
+            const resp = await fetch(`${API_BASE}/news`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...body, beat }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+            for (const h of data.hooks || []) {
+              const key = h.source_url || h.story;
+              if (seenStories.has(key)) continue;
+              seenStories.add(key);
+              document.getElementById('newsList').insertAdjacentHTML('beforeend', `
+                <li>
+                  <strong>${esc(h.story)}</strong>
+                  ${h.source_url ? ` <a class="src" href="${esc(h.source_url)}" target="_blank" rel="noopener noreferrer">${esc(h.source_name || 'source')}</a>` : ''}
+                  <span class="support">${esc(h.hook)}</span>
+                </li>`);
+              newsHookCount++;
+            }
+          } catch (err) {
+            console.error(`news/${beat}:`, err);
+          } finally {
+            newsPending--;
+            if (newsPending === 0) {
+              document.getElementById('newsStatus').outerHTML = newsHookCount
+                ? '' : '<p class="status error">No news hooks found — try again.</p>';
+            }
+          }
+        })());
+      }
 
       await Promise.allSettled(jobs);
       goBtn.disabled = false;
