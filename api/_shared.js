@@ -165,7 +165,7 @@ export async function generateBrief({ proposal, persona }) {
   const brief = await generate({
     persona,
     effort: "medium",
-    maxSearches: 6,
+    maxSearches: 8,
     userPrompt: `Policy proposal: ${proposal}
 
 Write a policy brief (roughly 2-3 pages, 800-1200 words) supporting this
@@ -178,12 +178,22 @@ substance solid enough to hand to a legislative office.
 Every statistic or study you cite must be verified with web_search and linked
 inline as a Markdown link on the source name, e.g. "([Bureau of Labor
 Statistics](https://www.bls.gov/...))". Cite only URLs you saw in search
-results; keep uncited claims qualitative.`,
+results; keep uncited claims qualitative. The brief is the deliverable — never
+include meta-commentary about your search process, tool limits, or sourcing
+constraints in it; if you couldn't verify a number, simply write the passage
+qualitatively and move on.`,
   });
   return { brief };
 }
 
 export async function generateNewsHooks({ proposal, persona }) {
+  // Occasionally a thin search round yields an empty hooks list; retry once.
+  const once = () => generateNewsHooksOnce({ proposal, persona });
+  const result = await once();
+  return result.hooks?.length ? result : once();
+}
+
+function generateNewsHooksOnce({ proposal, persona }) {
   return generate({
     persona,
     maxSearches: 6,
@@ -198,7 +208,10 @@ want them to adopt, in your persona's voice.
 
 Every story MUST come from this request's search results, with its real
 "source_name" and "source_url" — do not include stories you only remember
-from training data.`,
+from training data. Always return at least 3 hooks: if your searches surface
+fewer ideal stories than that, work with the real stories they did surface,
+even imperfect fits — an inventive graft onto a so-so story beats an empty
+list.`,
     schema: {
       type: "object",
       properties: {
