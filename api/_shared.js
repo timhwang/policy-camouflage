@@ -102,10 +102,11 @@ export async function generate({ persona, userPrompt, schema, maxTokens = 16000,
   if (message.stop_reason === "refusal") {
     throw new Error("The model declined this request.");
   }
-  const textBlocks = message.content.filter((b) => b.type === "text");
+  // With web search enabled, narration text interleaves with tool blocks;
+  // the deliverable is the text after the last tool/thinking block.
+  const lastToolIdx = message.content.findLastIndex((b) => b.type !== "text");
+  const textBlocks = message.content.slice(lastToolIdx + 1).filter((b) => b.type === "text");
   if (schema) {
-    // With web search enabled, text blocks can interleave with search results;
-    // the structured JSON is the final text block.
     return JSON.parse(textBlocks[textBlocks.length - 1].text);
   }
   return textBlocks.map((b) => b.text).join("");
@@ -180,9 +181,10 @@ percentage, dollar figure, or named study MUST carry an inline Markdown link
 to a source you saw in this request's web_search results, e.g. "([Bureau of
 Labor Statistics](https://www.bls.gov/...))". A numeric claim without a link
 is invalid output — if you couldn't verify a number, write that passage
-qualitatively instead. Run your searches before drafting. The brief is the
-deliverable: never include meta-commentary about your search process or tool
-limits in it.`,
+qualitatively instead. Run your searches before drafting. Your response text
+IS the deliverable: output the complete brief directly as Markdown response
+text — never save it to a file, and never include meta-commentary about your
+search process or tool limits.`,
   });
   return { brief };
 }
