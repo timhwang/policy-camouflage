@@ -163,7 +163,7 @@ all three fields as empty strings for those.`,
 }
 
 export async function generateBrief({ proposal, persona }) {
-  const brief = await generate({
+  return generate({
     persona,
     effort: "medium",
     maxSearches: 8,
@@ -171,22 +171,40 @@ export async function generateBrief({ proposal, persona }) {
 
 Write a policy brief (roughly 2-3 pages, 800-1200 words) supporting this
 proposal, written for staffers and activists who share your persona's
-politics. Format as Markdown with a title and 3-5 sections (e.g. Executive
-Summary, The Problem, The Solution, Why This Aligns With Our Values,
-Recommendations). Keep the persona's framing throughout, but make the
+politics. "brief_markdown" holds the complete brief: a title and 3-5 sections
+(e.g. Executive Summary, The Problem, The Solution, Why This Aligns With Our
+Values, Recommendations). Keep the persona's framing throughout, but make the
 substance solid enough to hand to a legislative office.
 
-Sourcing is a hard rule: any sentence containing a specific number,
-percentage, dollar figure, or named study MUST carry an inline Markdown link
-to a source you saw in this request's web_search results, e.g. "([Bureau of
-Labor Statistics](https://www.bls.gov/...))". A numeric claim without a link
-is invalid output — if you couldn't verify a number, write that passage
-qualitatively instead. Run your searches before drafting. Your response text
-IS the deliverable: output the complete brief directly as Markdown response
-text — never save it to a file, and never include meta-commentary about your
-search process or tool limits.`,
+Sourcing is a hard rule: run web searches before drafting, and every specific
+number, percentage, dollar figure, or named study in the brief MUST carry a
+bracketed citation marker like [1] that matches an entry in "sources" — a
+numeric claim with no [n] marker is invalid output. Each source's "url" must
+be a URL you saw in this request's search results. If you couldn't verify a
+number, write that passage qualitatively instead. Do not save anything to a
+file and do not include meta-commentary about your search process.`,
+    schema: {
+      type: "object",
+      properties: {
+        brief_markdown: { type: "string", description: "The complete brief as Markdown" },
+        sources: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              n: { type: "integer", description: "Citation number used in the text, e.g. 1 for [1]" },
+              name: { type: "string", description: "Publisher/study name" },
+              url: { type: "string" },
+            },
+            required: ["n", "name", "url"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["brief_markdown", "sources"],
+      additionalProperties: false,
+    },
   });
-  return { brief };
 }
 
 export async function generateNewsHooks({ proposal, persona }) {

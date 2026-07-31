@@ -298,8 +298,19 @@
               tp.source_url ? ` — <a class="src" href="${esc(tp.source_url)}" target="_blank" rel="noopener noreferrer">${esc(tp.source_name || 'source')}</a>` : ''
             }</span>` : ''}</li>`).join('')}
           </ul>`),
-        callApi('brief', body, document.getElementById('briefBody'),
-          (d) => `<div class="brief-md">${renderMd(d.brief || '')}</div>`),
+        callApi('brief', body, document.getElementById('briefBody'), (d) => {
+          let html = renderMd(d.brief_markdown || d.brief || '');
+          const sources = d.sources || [];
+          for (const s of sources) {
+            html = html.replaceAll(`[${s.n}]`,
+              `<a class="src" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer"><sup>[${s.n}]</sup></a>`);
+          }
+          if (sources.length) {
+            html += `<h3>Sources</h3><ol>${sources.map(s =>
+              `<li id="src-${s.n}"><a class="src" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.name)}</a></li>`).join('')}</ol>`;
+          }
+          return `<div class="brief-md">${html}</div>`;
+        }),
         callApi('news', body, document.getElementById('newsBody'), (d) => `
           <ul class="points">${(d.hooks || []).map(h => `
             <li>
