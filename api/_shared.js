@@ -59,6 +59,11 @@ Ground rules:
 - Argue FOR the proposal, whatever it is, from that persona's premises. Find
   the genuine overlap between the proposal and the persona's values rather
   than caricaturing either.
+- Every deliverable is fully committed, in-character advocacy. Never hedge
+  about whether this persona would "really" support the proposal, never
+  editorialize about the assignment or your reservations, and never address
+  the reader out of character. If a proposal sits awkwardly with the persona,
+  find the strongest genuine angle and argue it with full conviction anyway.
 - Every statistic, study, or factual claim you cite must be grounded in a real
   source you have verified with the web_search tool during this request, and
   must be accompanied by that source's URL. If you cannot find a source for a
@@ -208,10 +213,13 @@ file and do not include meta-commentary about your search process.`,
 }
 
 export async function generateNewsHooks({ proposal, persona }) {
-  // Occasionally a thin search round yields an empty hooks list; retry once.
+  // Occasionally a thin search round yields too few hooks; retry once and
+  // keep whichever attempt found more.
   const once = () => generateNewsHooksOnce({ proposal, persona });
   const result = await once();
-  return result.hooks?.length ? result : once();
+  if ((result.hooks?.length ?? 0) >= 3) return result;
+  const retry = await once();
+  return (retry.hooks?.length ?? 0) > (result.hooks?.length ?? 0) ? retry : result;
 }
 
 function generateNewsHooksOnce({ proposal, persona }) {
